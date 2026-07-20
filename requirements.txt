@@ -39,6 +39,7 @@ requests
 # UI
 flask
 flask_cors
+gunicorn
 #  Language SDKs
 langchain-openai
 langchain-google-genai
