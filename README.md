@@ -47,7 +47,7 @@ Powered by **LangChain**, the app allows you to configure your preferred LLM pro
 
 **1. Clone the repository and navigate to the directory:**
 ```bash
-git clone https://github.com/your-username/video-agent.git
+git clone https://github.com/shreyash729/Video-Agent
 cd video-agent
 ```
 
