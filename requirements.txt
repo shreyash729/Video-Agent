@@ -1,0 +1,45 @@
+# Python ==Python 3.12.2
+
+#  Audio / Video acquisition
+yt-dlp
+pydub
+ffmpeg-python
+
+#  Speech-to-Text (local Whisper)
+openai-whisper
+torch
+torchaudio
+faster_whisper
+
+
+#  LLM Orchestration - LangChain + Mistral
+langchain>=0.0.240
+langchain-core>=0.0.240
+langchain-community
+langchain-mistralai
+mistralai
+
+#  RAG Pipeline
+langchain-chroma
+chromadb
+sentence-transformers
+langchain-huggingface
+huggingface-hub
+tiktoken
+
+torch
+transformers
+accelerate
+
+#  Utilities
+python-dotenv
+numpy==2.4
+tqdm
+requests
+# UI
+flask
+flask_cors
+#  Language SDKs
+langchain-openai
+langchain-google-genai
+langchain-anthropic
