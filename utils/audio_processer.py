@@ -11,26 +11,39 @@ def download_youtube_audio(url :str, job_id: str) ->str:
     output_path = os.path.join(job_dir, "%(title)s.%(ext)s")
     browsers = ["chrome", "edge", "firefox", "brave", "opera", "safari"]
     filename = None
-    
-    for browser in browsers:
-        try:
-            print(f"Attempting to download with {browser} cookies...")
-            ydl_opts = {
-                "format": "bestaudio/best",
-                "outtmpl": output_path,
-                "quiet": True,
-                "cookiesfrombrowser": (browser, ),
-            }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
-            break
-        except Exception as e:
-            print(f"Failed with {browser} cookies.")
-            continue
+    # First, attempt without cookies (Works for most videos, and REQUIRED for headless servers)
+    try:
+        print("Attempting to download without cookies...")
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "outtmpl": output_path,
+            "quiet": True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+    except Exception as e:
+        print(f"Failed without cookies: {e}")
+        # Fallback to cookies for local desktop usage if YouTube blocks the generic request
+        for browser in browsers:
+            try:
+                print(f"Attempting to download with {browser} cookies...")
+                ydl_opts = {
+                    "format": "bestaudio/best",
+                    "outtmpl": output_path,
+                    "quiet": True,
+                    "cookiesfrombrowser": (browser, ),
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    filename = ydl.prepare_filename(info)
+                break
+            except Exception as e2:
+                print(f"Failed with {browser} cookies.")
+                continue
             
     if not filename:
-        raise Exception("Failed to bypass YouTube bot protection. Please ensure you are logged into YouTube on Chrome or Edge, and try closing the browser.")
+        raise Exception("Failed to download video. If it is age-restricted or YouTube is blocking the server IP, you may need to run the app locally where it can use your browser cookies.")
         
     return convert_to_wav(filename)
 
