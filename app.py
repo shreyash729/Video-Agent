@@ -244,6 +244,9 @@ def pipeline_worker(job_id, source, language, config):
 
     except Exception as e:
         traceback.print_exc()
+        with state_lock:
+            if job_id in jobs:
+                jobs[job_id]['error'] = str(e)
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr

@@ -126,6 +126,12 @@ body {
     gap: 10px;
 }
 
+.state-chat #sidebar {
+    width: 48%;
+    min-width: 350px;
+    transition: width 0.3s ease;
+}
+
 .state-chat #view-summary {
     width: 48%;
     min-width: 350px;
@@ -291,8 +297,15 @@ ul.sub-substeps li {
 }
 
 .running::before {
-    background: var(--primary) !important;
-    box-shadow: 0 0 8px var(--primary);
+    background: transparent !important;
+    border: 2px solid rgba(124, 58, 237, 0.3);
+    border-top-color: var(--primary);
+    width: 12px;
+    height: 12px;
+    left: -7px;
+    top: 5px;
+    box-shadow: none;
+    animation: spin 1s infinite linear;
 }
 
 .completed {

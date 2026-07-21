@@ -633,6 +633,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentJobId) return;
             const r = await fetch(`/status?job_id=${currentJobId}`);
             const s = await r.json();
+
+            if (s.error) {
+                alert(`An error occurred during processing:\n\n${s.error}`);
+                clearInterval(pollHandle);
+                pollHandle = null;
+                currentJobId = null;
+
+                // Reset UI to home screen
+                document.querySelectorAll('.view-section, .results-panel').forEach(el => el.classList.add('hidden'));
+                sidebar.classList.add('hidden');
+                viewInput.classList.remove('hidden');
+                layoutWrapper.classList.remove('state-summary', 'state-chat');
+                summaryBox.innerHTML = '<div class="empty-state spinner-large"></div>';
+                chatArea.innerHTML = '';
+
+                return;
+            }
+
             const steps = s.pipeline_steps;
 
 
