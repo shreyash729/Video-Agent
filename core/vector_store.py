@@ -2,7 +2,6 @@ import os
 
 # Compatibility imports: some langchain ecosystem packages have moved/renamed.
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 

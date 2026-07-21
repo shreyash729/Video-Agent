@@ -5,12 +5,7 @@ yt-dlp
 pydub
 ffmpeg-python
 
-#  Speech-to-Text (local Whisper)
-openai-whisper
-torch
-torchaudio
-faster_whisper
-
+#  Speech-to-Text (local Whisper dependencies moved to requirements_local.txt)
 
 #  LLM Orchestration - LangChain + Mistral
 langchain>=0.0.240
@@ -22,15 +17,12 @@ mistralai
 #  RAG Pipeline
 langchain-chroma
 chromadb
-sentence-transformers
+# sentence-transformers moved to requirements_local.txt
 langchain-huggingface
 huggingface-hub
 tiktoken
 
-torch
-transformers
-accelerate
-
+# Heavy dependencies moved to requirements_local.txt
 #  Utilities
 python-dotenv
 numpy==2.4

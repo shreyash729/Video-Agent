@@ -1,0 +1,8 @@
+
+openai-whisper
+faster_whisper
+sentence-transformers
+transformers
+accelerate
+torch
+torchaudio
