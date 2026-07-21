@@ -303,6 +303,11 @@ def start():
     if not config:
         return jsonify({'ok': False, 'error': 'Configuration payload is missing'})
 
+    allow_local = os.environ.get('ALLOW_LOCAL_MODEL', 'true').lower() == 'true'
+    if not allow_local:
+        if config.get('transcription_mode') == 'offline' or config.get('embedding_mode') == 'offline':
+            return jsonify({'ok': False, 'error': 'Local execution is disabled on this server. Please use online huggingface inference mode, or run the app locally on your own machine.'})
+
     if 'job_id' not in locals():
         job_id = str(uuid.uuid4())
 

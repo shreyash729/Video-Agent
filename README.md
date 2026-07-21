@@ -47,7 +47,7 @@ Powered by **LangChain**, the app allows you to configure your preferred LLM pro
 
 **1. Clone the repository and navigate to the directory:**
 ```bash
-git clone https://github.com/shreyash729/Video-Agent
+git clone https://github.com/your-username/video-agent.git
 cd video-agent
 ```
 
@@ -59,7 +59,11 @@ python -m venv .venv
 # Activate on Mac/Linux:
 source .venv/bin/activate
 
+# Install core dependencies (Required for all usages):
 pip install -r requirements.txt
+
+# (OPTIONAL) If you want to use heavy offline models locally, you MUST also install:
+pip install -r requirements_local.txt
 ```
 
 **3. Configure your Environment (Optional):**
