@@ -15,8 +15,8 @@ def split_transcript(transcript: str) -> list:
 
     return splitter.split_text(transcript)
 
-def summarize(transcript : str) -> str:
-    llm = get_llm()
+def summarize(transcript : str, config: dict) -> str:
+    llm = get_llm(config)
 
     map_prompt = ChatPromptTemplate.from_messages(
         [
@@ -50,8 +50,8 @@ def summarize(transcript : str) -> str:
 
     return combined_chain.invoke(combined)
 
-def generate_title(transcipt : str) -> str:
-    llm = get_llm()
+def generate_title(transcript : str, config: dict) -> str:
+    llm = get_llm(config)
 
     
 
@@ -69,7 +69,7 @@ def generate_title(transcipt : str) -> str:
         |StrOutputParser()
     )
 
-    return title_chain.invoke(transcipt[:2000])
+    return title_chain.invoke(transcript[:2000])
 
 
 

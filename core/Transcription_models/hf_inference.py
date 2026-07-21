@@ -3,13 +3,14 @@ from huggingface_hub import InferenceClient
 from .base import BaseTranscriber
 
 class HFInferenceTranscriber(BaseTranscriber):
-    def __init__(self, model_name: str = "openai/whisper-large-v3-turbo"):
+    def __init__(self, model_name: str = "openai/whisper-large-v3-turbo", hf_token: str = None):
         self.model_name = model_name
+        self.hf_token = hf_token
         self.client = None
 
     def _load_client(self):
         if self.client is None:
-            token = os.getenv("HF_TOKEN")
+            token = self.hf_token or os.getenv("HF_TOKEN")
             if not token:
                 raise ValueError("HF_TOKEN environment variable is not set. Online transcription requires it.")
             

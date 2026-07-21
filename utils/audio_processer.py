@@ -5,8 +5,10 @@ import os
 DOWNLOAD_DIR = 'downloades'
 os.makedirs(DOWNLOAD_DIR,exist_ok = True)
 
-def download_youtube_audio(url :str) ->str:
-    output_path = os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s")
+def download_youtube_audio(url :str, job_id: str) ->str:
+    job_dir = os.path.join('downloads', job_id)
+    os.makedirs(job_dir, exist_ok=True)
+    output_path = os.path.join(job_dir, "%(title)s.%(ext)s")
     browsers = ["chrome", "edge", "firefox", "brave", "opera", "safari"]
     filename = None
     
@@ -59,10 +61,10 @@ def chunk_audio(wav_path : str , chunk_minutes : int = 10) -> list:
     
     return chunks
 
-def process_input(source: str) -> list:
+def process_input(source: str, job_id: str) -> list:
     if source.startswith("http://") or source.startswith("https://"):
         print("Detected YouTube URL. Downloading audio...")
-        wav_path = download_youtube_audio(source)
+        wav_path = download_youtube_audio(source, job_id)
     else:
         print("Detected local file. Converting to WAV...")
         wav_path = convert_to_wav(source)
