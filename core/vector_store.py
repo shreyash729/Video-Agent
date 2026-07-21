@@ -10,8 +10,8 @@ CHROMA_DIR = "vector_db"
 COLLECTION_NAME = "meeting_transcript"
 from core.config import get_embedding_instance
 
-def get_embeddings():
-    return get_embedding_instance()
+def get_embeddings(config: dict):
+    return get_embedding_instance(config)
 
 
 
