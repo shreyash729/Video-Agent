@@ -70,7 +70,6 @@ pip install -r requirements_local.txt
 Create a `.env` file in the root directory. 
 ```env
 ALLOW_LOCAL_MODEL="true"
-GITHUB_REPO="https://github.com/your-username/video-agent"
 ```
 *(If you deploy this app publicly, you can set `ALLOW_LOCAL_MODEL="false"` to prevent users from crashing your server by forcing it to run heavy offline models).*
 
