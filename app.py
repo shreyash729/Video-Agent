@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+
 # Keep backend core imports unchanged
 from utils.audio_processer import process_input
 from core.summarizer import summarize, generate_title
@@ -56,9 +58,8 @@ def get_initial_job_state(source, language, config):
         "text_buffer": "",
         "pipeline_steps": {
             "audio_extract": {"status": "pending", "details": "Extracting Audio"},
-            "audio_chunk": {"status": "pending", "details": "Creating Audio Chunks"},
-            "transcribe_chunks": {"status": "pending", "details": "Transcribing chunks [0/0]", "progress": 0, "total": 0},
-            "transcribe_combine": {"status": "pending", "details": "Combining chunks"},
+            "transcribe": {"status": "pending", "details": "Transcribing Video"},
+            "Generating_Title":{"status": "pending", "details": "Generating Title.."},
             "summarize_llm": {"status": "pending", "details": "Generating Summary"},
             "rag_chunking": {"status": "pending", "details": "Chunking transcript"},
             "rag_embedding": {"status": "pending", "details": "Creating Embeddings [0/0]", "progress": 0, "total": 0},
@@ -70,16 +71,19 @@ def get_initial_job_state(source, language, config):
 def set_step(job_id, key, status, details=None, progress=None, total=None, activity=None):
     with state_lock:
         if job_id not in jobs: return
-        job_state = jobs[job_id]
-        job_state['pipeline_steps'][key]['status'] = status
-        if details is not None:
-            job_state['pipeline_steps'][key]['details'] = details
-        if progress is not None:
-            job_state['pipeline_steps'][key]['progress'] = progress
-        if total is not None:
-            job_state['pipeline_steps'][key]['total'] = total
-        if activity is not None:
-            job_state['current_activity'] = activity
+        try:
+            job_state = jobs[job_id]
+            job_state['pipeline_steps'][key]['status'] = status
+            if details is not None:
+                job_state['pipeline_steps'][key]['details'] = details
+            if progress is not None:
+                job_state['pipeline_steps'][key]['progress'] = progress
+            if total is not None:
+                job_state['pipeline_steps'][key]['total'] = total
+            if activity is not None:
+                job_state['current_activity'] = activity
+        except Exception:
+            return
 
 import sys
 import re
@@ -149,32 +153,24 @@ def pipeline_worker(job_id, source, language, config):
             if job_id not in jobs: return
             jobs[job_id]['running'] = True
 
-        # Audio processing
-        set_step(job_id, 'audio_extract', 'active', details="Extracting Audio...")
-        chunks = process_input(source, job_id)
+        # Audio Processing
+        set_step(job_id, 'audio_extract', 'active', details="Extracting and preparing audio...")
+        # source can now directly be the extracted single .wav/.mp3 file path
+        audio_file_path = process_input(source, job_id) 
         set_step(job_id, 'audio_extract', 'done')
-        
-        set_step(job_id, 'audio_chunk', 'active', details="Creating Audio Chunks...")
-        set_step(job_id, 'audio_chunk', 'done')
 
-        # Transcription
-        total_chunks = len(chunks)
-        set_step(job_id, 'transcribe_chunks', 'active', details=f"Transcribing chunks [0/{total_chunks}]", progress=0, total=total_chunks)
+        # Transcription (Single-Pass)
+        set_step(job_id, 'transcribe', 'active', details="Transcribing Video...")
+        transcript_segments = transcribe_chunk(audio_file_path, config, language=language)
+        full_transcript = " ".join([seg["text"].strip() for seg in transcript_segments])
+
+        set_step(job_id, 'transcribe', 'done')
         
-        full_transcript = ""
-        for i, chunk in enumerate(chunks):
-            set_step(job_id, 'transcribe_chunks', 'active', details=f"Transcribing chunks [{i+1}/{total_chunks}]", progress=i+1, total=total_chunks)
-            text = transcribe_chunk(chunk, config, language=language)
-            full_transcript += text + " "
-        
-        full_transcript = full_transcript.strip()
-        set_step(job_id, 'transcribe_chunks', 'done')
-        
-        set_step(job_id, 'transcribe_combine', 'active', activity="Combining Transcript...")
+        set_step(job_id, 'Generating_Title', 'active', activity="Generating title...")
         with state_lock:
             jobs[job_id]['transcript'] = full_transcript
             jobs[job_id]['title'] = generate_title(full_transcript, config)
-        set_step(job_id, 'transcribe_combine', 'done')
+        set_step(job_id, 'Generating_Title', 'done')
 
         # Run summarization and RAG creation in parallel
         def do_summary():
@@ -187,48 +183,120 @@ def pipeline_worker(job_id, source, language, config):
                 traceback.print_exc()
             set_step(job_id, 'summarize_llm', 'done')
 
-        def do_rag():
+        def do_rag(visual_captions=None):
             try:
-                set_step(job_id, 'rag_chunking', 'active', details="Chunking Transcript for RAG...")
+                set_step(job_id, 'rag_chunking', 'active', details="Chunking Transcript & Vision for RAG...")
                 import time
                 time.sleep(1)
-                splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-                txt_chunks = splitter.split_text(full_transcript)
-                docs = [Document(page_content=c, metadata={'chunk_index': i}) for i, c in enumerate(txt_chunks)]
+
+                docs = []
+
+                # 1. Build Smart Timestamped Audio Chunks
+                # Combine small Whisper segments into ~150-word chunks with timestamp ranges
+                current_text = ""
+                start_time = None
+                end_time = None
+                word_count = 0
+
+                for seg in transcript_segments:
+                    if start_time is None:
+                        start_time = seg.get("start", 0.0)
+                    
+                    text_str = seg.get("text", "").strip()
+                    current_text += " " + text_str
+                    end_time = seg.get("end", start_time)
+                    word_count += len(text_str.split())
+
+                    if word_count >= 120:  # Adjust window size as needed
+                        start_fmt = f"{int(start_time // 60):02d}:{int(start_time % 60):02d}"
+                        end_fmt = f"{int(end_time // 60):02d}:{int(end_time % 60):02d}"
+                        
+                        # Format page_content with timestamps embedded directly for the LLM
+                        content = f"[{start_fmt} - {end_fmt}] {current_text.strip()}"
+                        
+                        docs.append(Document(
+                            page_content=content,
+                            metadata={"start_time": start_fmt, "type": "audio_transcript"}
+                        ))
+                        current_text = ""
+                        start_time = None
+                        word_count = 0
+
+                # Don't forget leftover audio segments
+                if current_text.strip():
+                    start_fmt = f"{int(start_time // 60):02d}:{int(start_time % 60):02d}"
+                    end_fmt = f"{int(end_time // 60):02d}:{int(end_time % 60):02d}"
+                    content = f"[{start_fmt} - {end_fmt}] {current_text.strip()}"
+                    docs.append(Document(
+                        page_content=content,
+                        metadata={"start_time": start_fmt, "type": "audio_transcript"}
+                    ))
+
+                # 2. Add Visual Keyframe Captions (If Available)
+                if visual_captions:
+                    for cap in visual_captions:
+                        # cap = {"timestamp": "02:15", "caption": "Three people sitting on a sofa..."}
+                        ts = cap.get("timestamp", "00:00")
+                        content = f"[Visual Scene at {ts}] {cap['caption']}"
+                        docs.append(Document(
+                            page_content=content,
+                            metadata={"start_time": ts, "type": "visual_caption"}
+                        ))
+
                 set_step(job_id, 'rag_chunking', 'done')
 
-                set_step(job_id, 'rag_db', 'active', details="Initializing Chroma DB...")
-                time.sleep(1)
-                embeddings = vector_store.get_embeddings(config)
-                unique_col = f"{vector_store.COLLECTION_NAME}_{int(time.time())}_{job_id[:8]}"
-                vs = Chroma(collection_name=unique_col, embedding_function=embeddings)
+                # 3. Initialize Chroma DB
+                set_step(job_id, 'rag_db', 'active', details="Initializing Vector Store...")
+                embeddings = vector_store.get_embeddings(config) #[cite: 5]
+                unique_col = f"{vector_store.COLLECTION_NAME}_{int(time.time())}_{job_id[:8]}" #[cite: 5]
+                
+                vs = Chroma(collection_name=unique_col, embedding_function=embeddings) #[cite: 5]
                 set_step(job_id, 'rag_db', 'done')
 
+                # 4. Batch Ingest Embeddings (Instant Performance Boost!)
                 tot_rag = len(docs)
-                set_step(job_id, 'rag_embedding', 'active', details=f"Creating Embeddings [0/{tot_rag}]", progress=0, total=tot_rag)
+                set_step(job_id, 'rag_embedding', 'active', details=f"Embedding {tot_rag} chunks in batch...", progress=50, total=100)
                 
-                for i, doc in enumerate(docs):
-                    vs.add_documents([doc])
-                    set_step(job_id, 'rag_embedding', 'active', details=f"Creating Embeddings [{i+1}/{tot_rag}]", progress=i+1, total=tot_rag)
+                # Batch add ALL documents at once instead of a for-loop!
+                vs.add_documents(docs)
                 
-                set_step(job_id, 'rag_embedding', 'done')
-                
-                # Build the RAG Chain
-                retriever = vector_store.get_retriever(vs, k=4)
-                llm = get_llm(config)
-                prompt = ChatPromptTemplate.from_messages([
-                    ("system", "You are an expert video AI assistant. Answer the user's question based ONLY on the video transcript context provided below.\n\nIf the answer is not found in the context, say: \"I could not find this information in the meeting transcript.\"\n\nAlways be concise and precise. If quoting someone, mention it clearly.\n\nContext from video transcript:\n{context}"),
+                set_step(job_id, 'rag_embedding', 'done', progress=100, total=100)
+
+                # 5. Build Updated System Prompt & RAG Chain
+                retriever = vector_store.get_retriever(vs, k=4) #[cite: 5]
+                llm = get_llm(config) #[cite: 3, 4]
+
+                system_prompt = (
+                    "You are an expert video AI assistant. Answer the user's question based ONLY on the video transcript and visual context provided below.\n\n"
+                    "Guidelines:\n"
+                    "1. Whenever you answer, cite the exact timestamp in bracket format like [MM:SS] where the information occurred.\n"
+                    "2. If the user asks about visual details (e.g., clothes, counts, people on screen), check the visual scene context.\n"
+                    "3. If the answer is not found in the context, say: \"I could not find this information in the video transcript or visual scene.\"\n"
+                    "4. Be clear, precise, and concise.\n\n"
+                    "Context from video:\n{context}"
+                )
+
+                prompt = ChatPromptTemplate.from_messages([ #[cite: 3, 4]
+                    ("system", system_prompt),
                     ("human", "{question}"),
                 ])
-                rag_chain = ({"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()} | prompt | llm | StrOutputParser())
-                
+
+                rag_chain = (
+                    {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()} #[cite: 3, 4]
+                    | prompt 
+                    | llm 
+                    | StrOutputParser() #[cite: 3, 4]
+                )
+
                 with state_lock:
                     jobs[job_id]['rag_chain'] = rag_chain
-                
+
                 set_step(job_id, 'rag_complete', 'done', activity="RAG Ready")
 
             except Exception:
                 traceback.print_exc()
+
+
 
         t1 = threading.Thread(target=do_summary, daemon=True)
         t2 = threading.Thread(target=do_rag, daemon=True)

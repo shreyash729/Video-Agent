@@ -19,8 +19,12 @@ class HFInferenceTranscriber(BaseTranscriber):
                 api_key=token,
             )
 
-    def transcribe(self, chunk_path: str, task: str = "transcribe") -> str:
+    def transcribe(self, chunk_path: str, task: str = "transcribe") -> str | list[dict]:
         self._load_client()
-        result = self.client.automatic_speech_recognition(chunk_path, model=self.model_name)
-        # result is an object with text attribute
-        return result.text.strip()
+        result = self.client.automatic_speech_recognition(chunk_path, model=self.model_name, return_timestamps=True, )
+        transcript_segments = [
+            {"start": chunk["timestamp"][0], "end": chunk["timestamp"][1], "text": chunk["text"]}
+            for chunk in result["chunks"]
+        ]
+        return transcript_segments
+

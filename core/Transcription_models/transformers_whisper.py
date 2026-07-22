@@ -32,9 +32,12 @@ class TransformersWhisperTranscriber(BaseTranscriber):
             )
             print("transformers model loaded.")
 
-    def transcribe(self, chunk_path: str, task: str = "transcribe") -> str:
+    def transcribe(self, chunk_path: str, task: str = "transcribe") -> str | list[dict]:
         self._load_model()
-        # Ensure task is passed in generate_kwargs if needed, though pipeline handles it mostly
         generate_kwargs = {"task": task}
         result = self.pipe(chunk_path, generate_kwargs=generate_kwargs, return_timestamps=True)
-        return result["text"].strip()
+        transcript_segments = [
+            {"start": chunk["timestamp"][0], "end": chunk["timestamp"][1], "text": chunk["text"]}
+            for chunk in result["chunks"]
+        ]
+        return transcript_segments

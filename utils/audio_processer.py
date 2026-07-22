@@ -39,7 +39,7 @@ def download_youtube_audio(url :str, job_id: str) ->str:
                                 for chunk in wav_resp.iter_content(chunk_size=8192):
                                     f.write(chunk)
                             print("Successfully downloaded via API.")
-                            return convert_to_wav(out_filename)
+                            return out_filename
                         break
     except Exception as e:
         print(f"Failed via third-party API: {e}")
@@ -107,16 +107,18 @@ def chunk_audio(wav_path : str , chunk_minutes : int = 10) -> list:
     
     return chunks
 
-def process_input(source: str, job_id: str) -> list:
+def process_input(source: str, job_id: str) -> str | list:
     if source.startswith("http://") or source.startswith("https://"):
         print("Detected YouTube URL. Downloading audio...")
         wav_path = download_youtube_audio(source, job_id)
     else:
         print("Detected local file. Converting to WAV...")
         wav_path = convert_to_wav(source)
-
+    '''
     print("Chunking audio...")
     chunks = chunk_audio(wav_path)
     print(f"Audio ready — {len(chunks)} chunk(s) created.")
-    return chunks
+    '''
+    chunks=[wav_path]
+    return wav_path
 

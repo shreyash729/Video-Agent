@@ -157,11 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Info Toggle
-    el('show-chunk-info').addEventListener('click', () => {
-        const panel = el('chunk-info-panel');
-        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    });
+
 
     // --- Configuration Logic ---
     const viewConfig = el('view-config');
@@ -656,14 +652,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Step 1: Transcribing
             updateSubstep('sub-audio-extract', getMappedStatus(steps.audio_extract.status));
-            updateSubstep('sub-audio-chunk', getMappedStatus(steps.audio_chunk.status));
-            updateSubstep('sub-transcribe-chunks', getMappedStatus(steps.transcribe_chunks.status));
+            updateSubstep('sub-transcribe-step', getMappedStatus(steps.transcribe.status));
+            updateSubstep('sub-title', getMappedStatus(steps.Generating_Title.status));
 
-            if (steps.transcribe_chunks.total > 0) {
-                el('transcribe-progress').innerText = `[${steps.transcribe_chunks.progress}/${steps.transcribe_chunks.total}]`;
-            }
-
-            updateSubstep('sub-transcribe-combine', getMappedStatus(steps.transcribe_combine.status));
 
             // Step 2: Summarization & RAG
             updateSubstep('sub-summarize-llm', getMappedStatus(steps.summarize_llm.status));

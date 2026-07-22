@@ -15,10 +15,13 @@ class FasterWhisperTranscriber(BaseTranscriber):
             self.model = WhisperModel(self.model_name, device=device, compute_type=compute_type)
             print("faster-whisper model loaded.")
 
-    def transcribe(self, chunk_path: str, task: str = "transcribe") -> str:
+    def transcribe(self, chunk_path: str, task: str = "transcribe") -> str | list[dict]:
         self._load_model()
         segments, info = self.model.transcribe(chunk_path, task=task, vad_filter=True)
-        full_text = ""
-        for segment in segments:
-            full_text += segment.text + " "
-        return full_text.strip()
+        transcript_segments = [{"start": s.start, "end": s.end, "text": s.text} for s in segments]
+        # full_text = ""
+        # for segment in segments:
+        #     full_text += segment.text + " "
+        # return full_text.strip()
+
+        return transcript_segments
