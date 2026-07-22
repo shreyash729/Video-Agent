@@ -27,12 +27,12 @@ Powered by **LangChain**, the app allows you to configure your preferred LLM pro
 - Anthropic (Claude 3.5 Sonnet)
 
 ### 2. Transcription Models (Speech-to-Text)
-- **Local (faster-whisper):** `large-v3`, `medium`, `small`, `base`
+- **Local (faster-whisper):** `large-v3`, `medium`, `small`, `base`, `openai/whisper-large-v3-turbo`
 - **Online (Hugging Face):** `openai/whisper-large-v3-turbo`, `openai/whisper-large-v3`
 
 ### 3. Embedding Models (RAG Vectorization)
-- **Local (Sentence Transformers):** `all-MiniLM-L6-v2`, `all-MiniLM-L12-v2`
-- **Online (Hugging Face):** `google/embeddinggemma-300m`, `LiquidAI/LFM2.5-Embedding-350M`
+- **Local (Sentence Transformers):** `all-MiniLM-L6-v2`, `all-MiniLM-L12-v2`, `google/embeddinggemma-300m`, `LiquidAI/LFM2.5-Embedding-350M`
+- **Online (Hugging Face):** `google/embeddinggemma-300m`, `LiquidAI/LFM2.5-Embedding-350M`, `all-MiniLM-L6-v2`, `all-MiniLM-L12-v2`
 
 ---
 
