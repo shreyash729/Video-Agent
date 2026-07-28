@@ -1,3 +1,10 @@
+try:
+    __import__('pysqlite3')
+    import sys
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except Exception:
+    pass
+
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import threading

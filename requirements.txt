@@ -17,6 +17,7 @@ mistralai
 #  RAG Pipeline
 langchain-chroma
 chromadb
+pysqlite3-binary
 # sentence-transformers moved to requirements_local.txt
 langchain-huggingface
 huggingface-hub
