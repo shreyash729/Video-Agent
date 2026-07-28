@@ -1,4 +1,3 @@
-import yt_dlp
 from pydub import AudioSegment
 import os
 
@@ -14,8 +13,6 @@ def get_job_dir(job_id: str) -> str:
 
 def download_youtube_audio(url :str, job_id: str) ->str:
     job_dir = get_job_dir(job_id)
-    output_path = os.path.join(job_dir, "%(title)s.%(ext)s")
-    browsers = ["chrome", "edge", "firefox", "brave", "opera", "safari"]
     filename = None
     import time
     import requests
@@ -50,37 +47,6 @@ def download_youtube_audio(url :str, job_id: str) ->str:
     except Exception as e:
         print(f"Failed via third-party API: {e}")
 
-    # Second, attempt without cookies (Works for most videos, and REQUIRED for headless servers)
-    try:
-        print("Attempting to download video...")
-        ydl_opts = {
-            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-            "outtmpl": output_path,
-            "quiet": True,
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-    except Exception as e:
-        print(f"Failed without cookies: {e}")
-        # Fallback to cookies for local desktop usage if YouTube blocks the generic request
-        for browser in browsers:
-            try:
-                print(f"Attempting to download with {browser} cookies...")
-                ydl_opts = {
-                    "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-                    "outtmpl": output_path,
-                    "quiet": True,
-                    "cookiesfrombrowser": (browser, ),
-                }
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    filename = ydl.prepare_filename(info)
-                break
-            except Exception as e2:
-                print(f"Failed with {browser} cookies.")
-                continue
-            
     if not filename:
         raise Exception("Failed to download video. If it is age-restricted or YouTube is blocking the server IP, you may need to run the app locally where it can use your browser cookies.")
         
