@@ -43,29 +43,52 @@ def get_embedding_instance(config: dict):
     else:
         raise ValueError(f"Unknown embedding mode: {mode}")
 
+def get_vision_model(config: dict):
+    isSelected = config.get("is_Vision_Selected") or config.get("is_vision_selected") # if user wants image processing or not
+    api_key = config.get("vision_api_key")
+    if not isSelected:  # user does not want video/image vision processing
+        return False
+    mode = config.get("vision_mode")
+    model = config.get("vision_model")
+    if not mode:
+        raise ValueError("Vision configuration is missing. Please set vision_mode.")
+    
+    if mode == "offline":
+        if model == "moondream3.1-9B-A2B":
+            from core.vision_models.Moondream_3_1_Offline import Moondream_3_1_Offline
+            return Moondream_3_1_Offline()
+        elif model == "Moondream-2":
+            from core.vision_models.Moondream2Offline import Moondream2Offline
+            return Moondream2Offline()
+        elif model == "moondream/moondream3-preview":
+            from core.vision_models.MoonDream3_Preview_offline import MoonDream3_Preview_offline
+            return MoonDream3_Preview_offline()
+        elif model == "Salesforce/blip-image-captioning-base":
+            from core.vision_models.SalesForce_Blip_Base_Offline import BLIPImageCaptioningBaseOffline
+            return BLIPImageCaptioningBaseOffline()
+        elif model == "Salesforce/blip-image-captioning-large":
+            from core.vision_models.SalesForce_Blip_Large_Offline import SalesForce_Blip_Large_Offline
+            return SalesForce_Blip_Large_Offline()
+        else:
+            raise ValueError(f"Unknown vision model: {model}")
+    elif mode == "online":
+        if model in ["moondream 3", "moondream/moondream3-preview", "moondream"]:
+            if not api_key:
+                return False
+            from core.vision_models.MoonDream3_Preview_online import MoonDream3_Preview_online
+            return MoonDream3_Preview_online(api_key)
+        else:
+            return False
+    else:
+        return False
+
 def get_llm(config: dict):
     if not config.get("provider") or not config.get("model") or not config.get("api_key"):
         raise ValueError("LLM configuration is missing. Please set provider, model and api_key.")
-        
-    # Inject API key securely for this specific invocation without mutating global env vars if possible.
-    # However, some langchain models require env vars. We will temporarily set it.
-    key_map = {
-        "openai": "OPENAI_API_KEY",
-        "google_genai": "GOOGLE_API_KEY",
-        "mistralai": "MISTRAL_API_KEY",
-        "anthropic": "ANTHROPIC_API_KEY"
-    }
-    
-    env_key = key_map.get(config.get("provider"))
-    if env_key:
-        os.environ[env_key] = config.get("api_key")
-        
-    hf_token = config.get("hf_token")
-    if hf_token:
-        os.environ["HF_TOKEN"] = hf_token
-        
+
     return init_chat_model(
         model=config["model"],
         model_provider=config["provider"],
+        api_key=config["api_key"],
         temperature=0.3
     )

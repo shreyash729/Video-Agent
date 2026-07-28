@@ -42,6 +42,20 @@ jobs = {}
 thread_local = threading.local()
 
 def get_initial_job_state(source, language, config):
+    allow_vision = (config.get("is_Vision_Selected") or config.get("is_vision_selected")) if isinstance(config, dict) else False
+    steps = {
+        "audio_extract": {"status": "pending", "details": "Extracting Audio"},
+        "transcribe": {"status": "pending", "details": "Transcribing Video"},
+        "Generating_Title":{"status": "pending", "details": "Generating Title.."},
+        "summarize_llm": {"status": "pending", "details": "Generating Summary"},
+        "rag_chunking": {"status": "pending", "details": "Chunking transcript"},
+        "rag_embedding": {"status": "pending", "details": "Creating Embeddings [0/0]", "progress": 0, "total": 0},
+        "rag_db": {"status": "pending", "details": "Initializing Chroma DB"},
+        "rag_complete": {"status": "pending", "details": "Completed"}
+    }
+    if allow_vision:
+        steps["vision_extract"] = {"status": "pending", "details": "Processing Vision Captions"}
+
     return {
         "running": False,
         "source": source,
@@ -56,16 +70,7 @@ def get_initial_job_state(source, language, config):
         "rag_chain": None,
         "current_activity": "Starting...",
         "text_buffer": "",
-        "pipeline_steps": {
-            "audio_extract": {"status": "pending", "details": "Extracting Audio"},
-            "transcribe": {"status": "pending", "details": "Transcribing Video"},
-            "Generating_Title":{"status": "pending", "details": "Generating Title.."},
-            "summarize_llm": {"status": "pending", "details": "Generating Summary"},
-            "rag_chunking": {"status": "pending", "details": "Chunking transcript"},
-            "rag_embedding": {"status": "pending", "details": "Creating Embeddings [0/0]", "progress": 0, "total": 0},
-            "rag_db": {"status": "pending", "details": "Initializing Chroma DB"},
-            "rag_complete": {"status": "pending", "details": "Completed"}
-        }
+        "pipeline_steps": steps
     }
 
 def set_step(job_id, key, status, details=None, progress=None, total=None, activity=None):
@@ -153,15 +158,13 @@ def pipeline_worker(job_id, source, language, config):
             if job_id not in jobs: return
             jobs[job_id]['running'] = True
 
-        # Audio Processing
         set_step(job_id, 'audio_extract', 'active', details="Extracting and preparing audio...")
-        # source can now directly be the extracted single .wav/.mp3 file path
-        audio_file_path = process_input(source, job_id) 
+        file_path = process_input(source, job_id) 
         set_step(job_id, 'audio_extract', 'done')
 
-        # Transcription (Single-Pass)
+        
         set_step(job_id, 'transcribe', 'active', details="Transcribing Video...")
-        transcript_segments = transcribe_chunk(audio_file_path, config, language=language)
+        transcript_segments = transcribe_chunk(file_path['audio'], config, language=language)
         full_transcript = " ".join([seg["text"].strip() for seg in transcript_segments])
 
         set_step(job_id, 'transcribe', 'done')
@@ -172,7 +175,6 @@ def pipeline_worker(job_id, source, language, config):
             jobs[job_id]['title'] = generate_title(full_transcript, config)
         set_step(job_id, 'Generating_Title', 'done')
 
-        # Run summarization and RAG creation in parallel
         def do_summary():
             set_step(job_id, 'summarize_llm', 'active', activity="Generating Summary...")
             try:
@@ -183,16 +185,22 @@ def pipeline_worker(job_id, source, language, config):
                 traceback.print_exc()
             set_step(job_id, 'summarize_llm', 'done')
 
-        def do_rag(visual_captions=None):
+        def do_rag():
             try:
-                set_step(job_id, 'rag_chunking', 'active', details="Chunking Transcript & Vision for RAG...")
-                import time
-                time.sleep(1)
+                
 
+                allow_vision = (config.get("is_Vision_Selected") or config.get("is_vision_selected")) if isinstance(config, dict) else False
+                if(allow_vision == True):
+                    set_step(job_id, 'vision_extract', 'active', details="Extracting and preparing vision for RAG...")
+                    from core.vision_indexer import process_vision_captions   
+                    visual_captions = process_vision_captions(file_path['video'], job_id=job_id, config=config)
+                    set_step(job_id, 'vision_extract', 'done')
+                else:
+                    visual_captions = False
                 docs = []
 
                 # 1. Build Smart Timestamped Audio Chunks
-                # Combine small Whisper segments into ~150-word chunks with timestamp ranges
+                set_step(job_id, 'rag_chunking', 'active', details="Chunking Transcript & Vision for RAG...")
                 current_text = ""
                 start_time = None
                 end_time = None
@@ -207,11 +215,10 @@ def pipeline_worker(job_id, source, language, config):
                     end_time = seg.get("end", start_time)
                     word_count += len(text_str.split())
 
-                    if word_count >= 120:  # Adjust window size as needed
+                    if word_count >= 120:
                         start_fmt = f"{int(start_time // 60):02d}:{int(start_time % 60):02d}"
                         end_fmt = f"{int(end_time // 60):02d}:{int(end_time % 60):02d}"
                         
-                        # Format page_content with timestamps embedded directly for the LLM
                         content = f"[{start_fmt} - {end_fmt}] {current_text.strip()}"
                         
                         docs.append(Document(
@@ -222,7 +229,6 @@ def pipeline_worker(job_id, source, language, config):
                         start_time = None
                         word_count = 0
 
-                # Don't forget leftover audio segments
                 if current_text.strip():
                     start_fmt = f"{int(start_time // 60):02d}:{int(start_time % 60):02d}"
                     end_fmt = f"{int(end_time // 60):02d}:{int(end_time % 60):02d}"
@@ -232,10 +238,8 @@ def pipeline_worker(job_id, source, language, config):
                         metadata={"start_time": start_fmt, "type": "audio_transcript"}
                     ))
 
-                # 2. Add Visual Keyframe Captions (If Available)
                 if visual_captions:
                     for cap in visual_captions:
-                        # cap = {"timestamp": "02:15", "caption": "Three people sitting on a sofa..."}
                         ts = cap.get("timestamp", "00:00")
                         content = f"[Visual Scene at {ts}] {cap['caption']}"
                         docs.append(Document(
@@ -245,7 +249,6 @@ def pipeline_worker(job_id, source, language, config):
 
                 set_step(job_id, 'rag_chunking', 'done')
 
-                # 3. Initialize Chroma DB
                 set_step(job_id, 'rag_db', 'active', details="Initializing Vector Store...")
                 embeddings = vector_store.get_embeddings(config) #[cite: 5]
                 unique_col = f"{vector_store.COLLECTION_NAME}_{int(time.time())}_{job_id[:8]}" #[cite: 5]
@@ -375,9 +378,16 @@ def start():
         return jsonify({'ok': False, 'error': 'Configuration payload is missing'})
 
     allow_local = os.environ.get('ALLOW_LOCAL_MODEL', 'true').lower() == 'true'
+    allow_vision = (config.get("is_Vision_Selected") or config.get("is_vision_selected")) if isinstance(config, dict) else False
+
+
     if not allow_local:
         if config.get('transcription_mode') == 'offline' or config.get('embedding_mode') == 'offline':
             return jsonify({'ok': False, 'error': 'Local execution is disabled on this server. Please use online huggingface inference mode, or run the app locally on your own machine.'})
+
+    if allow_vision and not allow_local:
+        if config.get('vision_mode') == 'offline':
+            return jsonify({'ok': False, 'error': 'Vision engine is disabled for offline mode on this server. clone github repo and set ALLOW_LOCAL_VISION_MODEL=true in .env file to enable it'})
 
     if 'job_id' not in locals():
         job_id = str(uuid.uuid4())
@@ -427,29 +437,35 @@ def set_config_route():
     provider = data.get('provider')
     model = data.get('model')
     api_key = data.get('api_key')
+    vision_api_key = data.get('vision_api_key')
     transcription_mode = data.get('transcription_mode')
+    vision_mode = data.get('vision_mode')
     embedding_mode = data.get('embedding_mode')
-    
+    allow_vision = (data.get('is_vision_selected') or data.get('is_Vision_Selected')) if isinstance(data, dict) else False
     # Enforce local model restrictions
     allow_local = os.environ.get('ALLOW_LOCAL_MODEL', 'true').lower() == 'true'
+
+
     if not allow_local:
         if transcription_mode == 'offline' or embedding_mode == 'offline':
             return jsonify({'ok': False, 'error': 'Local execution is disabled on this server. Please use online huggingface inference mode, or run the app locally on your own machine.'})
             
+    if allow_vision:
+        if vision_mode == 'offline' and not allow_local:
+            return jsonify({'ok': False, 'error': 'Vision engine is disabled for offline mode on this server. clone github repo and set ALLOW_LOCAL_VISION_MODEL=true in .env file to enable it'})
+        if vision_mode == 'online' and not vision_api_key:
+            return jsonify({'ok': False, 'error': 'Vision Engine API key is missing. Please set vision_api_key in the configuration.'})
+    
+    
     if provider and model and api_key and api_key != "********":
         from langchain.chat_models import init_chat_model
-        key_map = {
-            "openai": "OPENAI_API_KEY",
-            "google_genai": "GOOGLE_API_KEY",
-            "mistralai": "MISTRAL_API_KEY",
-            "anthropic": "ANTHROPIC_API_KEY"
-        }
-        env_key = key_map.get(provider)
-        if env_key:
-            os.environ[env_key] = api_key
-            
         try:
-            test_llm = init_chat_model(model=model, model_provider=provider, temperature=0.3)
+            test_llm = init_chat_model(
+                model=model,
+                model_provider=provider,
+                api_key=api_key,
+                temperature=0.3
+            )
             test_llm.invoke("Hello")
         except Exception as e:
             return jsonify({'ok': False, 'error': f"Model validation failed: {str(e)}"})

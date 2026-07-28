@@ -176,6 +176,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const configEmbeddingMode = el('config-embedding-mode');
     const configEmbeddingModel = el('config-embedding-model');
 
+    const configVisionSelected = el('config-vision-selected');
+    const configVisionMode = el('config-vision-mode');
+    const configVisionModel = el('config-vision-model');
+    const configVisionApiKey = el('config-vision-api-key');
+    const visionApiKeyGroup = el('vision-api-key-group');
+    const visionSettingsGroup = el('vision-settings-group');
+
     const OFFLINE_MODELS = [
         { value: "large-v3", text: "faster-whisper large-v3", url: "https://huggingface.co/Systran/faster-whisper-large-v3" },
         { value: "base", text: "faster-whisper base", url: "https://huggingface.co/Systran/faster-whisper-base" },
@@ -194,6 +201,18 @@ document.addEventListener('DOMContentLoaded', () => {
         { value: "sentence-transformers/all-MiniLM-L12-v2", text: "all-MiniLM-L12-v2", url: "https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2" },
         { value: "google/embeddinggemma-300m", text: "google/embeddinggemma-300m", url: "https://huggingface.co/google/embeddinggemma-300m" },
         { value: "LiquidAI/LFM2.5-Embedding-350M", text: "LiquidAI/LFM2.5-Embedding-350M", url: "https://huggingface.co/LiquidAI/LFM2.5-Embedding-350M" }
+    ];
+
+    const OFFLINE_VISION_MODELS = [
+        { value: "Salesforce/blip-image-captioning-base", text: "BLIP Image Captioning Base" },
+        { value: "Salesforce/blip-image-captioning-large", text: "BLIP Image Captioning Large" },
+        { value: "Moondream-2", text: "Moondream 2" },
+        { value: "moondream3.1-9B-A2B", text: "Moondream 3.1 9B" },
+        { value: "moondream/moondream3-preview", text: "Moondream 3 Preview (Offline)" }
+    ];
+
+    const ONLINE_VISION_MODELS = [
+        { value: "moondream 3", text: "Moondream 3 API (Online)" }
     ];
 
     function updateTranscriptionModels(mode, selectedModel = null) {
@@ -265,6 +284,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateVisionModels(mode, selectedModel = null) {
+        if (!configVisionModel) return;
+        configVisionModel.innerHTML = '';
+        const models = mode === 'online' ? ONLINE_VISION_MODELS : OFFLINE_VISION_MODELS;
+        models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.value;
+            opt.innerText = m.text;
+            configVisionModel.appendChild(opt);
+        });
+
+        if (mode === 'online') {
+            if (visionApiKeyGroup) visionApiKeyGroup.classList.remove('hidden');
+        } else {
+            if (visionApiKeyGroup) visionApiKeyGroup.classList.add('hidden');
+        }
+
+        if (selectedModel) {
+            configVisionModel.value = selectedModel;
+        }
+    }
+
     function enforceLocalRestriction(selectElement) {
         if (selectElement.value === 'offline' && window.allowLocalModel === false) {
             const modal = el('local-model-modal');
@@ -280,6 +321,25 @@ document.addEventListener('DOMContentLoaded', () => {
             return true; // was restricted
         }
         return false;
+    }
+
+    if (configVisionSelected) {
+        configVisionSelected.addEventListener('change', (e) => {
+            if (visionSettingsGroup) {
+                if (e.target.checked) visionSettingsGroup.classList.remove('hidden');
+                else visionSettingsGroup.classList.add('hidden');
+            }
+        });
+    }
+
+    if (configVisionMode) {
+        configVisionMode.addEventListener('change', (e) => {
+            if (enforceLocalRestriction(e.target)) {
+                updateVisionModels('online');
+                return;
+            }
+            updateVisionModels(e.target.value);
+        });
     }
 
     if (configTranscriptionMode) {
@@ -329,6 +389,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (current === 2) {
                 if (configTranscriptionMode.value === 'online' && !isConfigured && !configHfToken.value.trim()) {
                     alert('Please enter your Hugging Face Token for online transcription.');
+                    return;
+                }
+            } else if (current === 3) {
+                if (configEmbeddingMode.value === 'online' && !isConfigured && !configHfToken.value.trim()) {
+                    alert('Please enter your Hugging Face Token for online embeddings.');
                     return;
                 }
             }
@@ -440,6 +505,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     configHfToken.value = "";
                 }
+
+                const isVisionSel = savedConfig.is_vision_selected !== undefined ? savedConfig.is_vision_selected : true;
+                if (configVisionSelected) configVisionSelected.checked = isVisionSel;
+                if (visionSettingsGroup) {
+                    if (isVisionSel) visionSettingsGroup.classList.remove('hidden');
+                    else visionSettingsGroup.classList.add('hidden');
+                }
+
+                if (savedConfig.vision_mode) {
+                    if (configVisionMode) configVisionMode.value = savedConfig.vision_mode;
+                    if (!enforceLocalRestriction(configVisionMode)) {
+                        updateVisionModels(savedConfig.vision_mode, savedConfig.vision_model);
+                    } else {
+                        updateVisionModels('online');
+                    }
+                } else {
+                    if (configVisionMode) {
+                        configVisionMode.value = 'offline';
+                        if (!enforceLocalRestriction(configVisionMode)) {
+                            updateVisionModels('offline');
+                        } else {
+                            updateVisionModels('online');
+                        }
+                    }
+                }
+
+                if (savedConfig.vision_api_key && configVisionApiKey) {
+                    configVisionApiKey.value = "********";
+                } else if (configVisionApiKey) {
+                    configVisionApiKey.value = "";
+                }
             })
             .catch(console.error);
     }
@@ -497,11 +593,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const eMode = configEmbeddingMode.value;
             const eModel = configEmbeddingModel.value;
 
+            const isVisionSel = configVisionSelected ? configVisionSelected.checked : true;
+            const vMode = configVisionMode ? configVisionMode.value : 'offline';
+            const vModel = configVisionModel ? configVisionModel.value : 'Salesforce/blip-image-captioning-base';
+            const vApiKey = configVisionApiKey ? configVisionApiKey.value.trim() : '';
+
             if ((tMode === 'online' || eMode === 'online') && !hfToken && !isConfigured) {
                 alert('Please provide your Hugging Face token for online models.');
                 btn.innerText = oldText;
                 btn.disabled = false;
                 return;
+            }
+
+            if (isVisionSel && vMode === 'online' && !vApiKey && !isConfigured) {
+                alert('Please provide your Vision API Key for online Moondream models.');
+                btn.innerText = oldText;
+                btn.disabled = false;
+                return;
+            }
+            if (isVisionSel) {
+                document.getElementById("sub-vision-extract").style.display = "block";
             }
 
             fetch('/config', {
@@ -515,7 +626,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     transcription_model: tModel,
                     hf_token: hfToken,
                     embedding_mode: eMode,
-                    embedding_model: eModel
+                    embedding_model: eModel,
+                    is_vision_selected: isVisionSel,
+                    vision_mode: vMode,
+                    vision_model: vModel,
+                    vision_api_key: vApiKey
                 })
             })
                 .then(r => r.json())
@@ -537,6 +652,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 savedHfToken = oldConf.hf_token || "";
                             } catch (e) { }
                         }
+                        let savedVisionApiKey = vApiKey;
+                        if (vApiKey === "********") {
+                            try {
+                                const oldConf = JSON.parse(localStorage.getItem('videoAgentConfig')) || {};
+                                savedVisionApiKey = oldConf.vision_api_key || "";
+                            } catch (e) { }
+                        }
 
                         localStorage.setItem('videoAgentConfig', JSON.stringify({
                             provider,
@@ -546,7 +668,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             transcription_model: tModel,
                             hf_token: savedHfToken,
                             embedding_mode: eMode,
-                            embedding_model: eModel
+                            embedding_model: eModel,
+                            is_vision_selected: isVisionSel,
+                            vision_mode: vMode,
+                            vision_model: vModel,
+                            vision_api_key: savedVisionApiKey
                         }));
 
                         el('btn-cancel-config').classList.remove('hidden');
@@ -657,6 +783,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
             // Step 2: Summarization & RAG
+            if (steps.vision_extract) {
+                const subVision = el('sub-vision-extract');
+                if (subVision) subVision.style.display = 'block';
+                updateSubstep('sub-vision-extract', getMappedStatus(steps.vision_extract.status));
+            }
             updateSubstep('sub-summarize-llm', getMappedStatus(steps.summarize_llm.status));
             updateSubstep('sub-rag-chunking', getMappedStatus(steps.rag_chunking.status));
             updateSubstep('sub-rag-embedding', getMappedStatus(steps.rag_embedding.status));

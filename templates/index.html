@@ -83,12 +83,13 @@
             <section class="glass-card view-section hidden" id="view-config">
                 <div class="config-header">
                     <h2>Model Configuration</h2>
-                    <p class="subtitle">Complete the 3-step setup to begin using the app.</p>
+                    <p class="subtitle">Complete the 4-step setup to begin using the app.</p>
                     <div class="wizard-progress"
-                        style="display: flex; justify-content: space-between; margin-bottom: 20px; font-weight: 500; font-size: 0.9rem;">
+                        style="display: flex; justify-content: space-between; margin-bottom: 20px; font-weight: 500; font-size: 0.85rem; gap: 4px;">
                         <span id="step-indicator-1" style="color: var(--primary);">1. LLM</span>
                         <span id="step-indicator-2" style="color: var(--text-muted);">2. Transcription</span>
                         <span id="step-indicator-3" style="color: var(--text-muted);">3. Embeddings</span>
+                        <span id="step-indicator-4" style="color: var(--text-muted);">4. Vision Engine</span>
                     </div>
                 </div>
 
@@ -168,6 +169,40 @@
                         </div>
                         <div style="display: flex; gap: 12px; margin-top: 24px;">
                             <button type="button" class="secondary-btn btn-prev-step" data-prev="2">Back</button>
+                            <button type="button" class="primary-btn btn-next-step" data-next="4">Next Step</button>
+                        </div>
+                    </div>
+
+                    <!-- STEP 4: VISION ENGINE -->
+                    <div class="wizard-panel hidden" id="wizard-step-4">
+                        <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="config-vision-selected" checked
+                                style="width: 18px; height: 18px; cursor: pointer;" />
+                            <label for="config-vision-selected" style="margin: 0; cursor: pointer;">Enable Vision Engine
+                                (Frame & Scene Captioning)</label>
+                        </div>
+                        <div id="vision-settings-group">
+                            <div class="input-group" style="margin-top: 12px;">
+                                <label>Vision Mode</label>
+                                <select id="config-vision-mode" class="custom-select">
+                                    <option value="offline">Offline (Local GPU Compute)</option>
+                                    <option value="online">Online (Moondream API)</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>Vision Model</label>
+                                <select id="config-vision-model" class="custom-select">
+                                    <!-- Options populated dynamically -->
+                                </select>
+                            </div>
+                            <div class="input-group hidden" id="vision-api-key-group">
+                                <label>Vision API Key</label>
+                                <input type="password" id="config-vision-api-key"
+                                    placeholder="Enter Moondream API Key" />
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 12px; margin-top: 24px;">
+                            <button type="button" class="secondary-btn btn-prev-step" data-prev="3">Back</button>
                             <button type="button" id="btn-save-config" class="primary-btn">Save & Finish</button>
                         </div>
                     </div>
@@ -203,11 +238,13 @@
                             <li id="sub-summarize-llm" class="pending">a) Generating Summary</li>
                             <li class="substep-group">b) RAG Initialization:
                                 <ul class="sub-substeps">
-                                    <li id="sub-rag-chunking" class="pending">b.1) Chunking transcript</li>
-                                    <li id="sub-rag-embedding" class="pending">b.2) Creating Embeddings <span
+                                    <li id="sub-vision-extract" style="display: none;" class="pending">b.1) Processing
+                                        Vision Captions</li>
+                                    <li id="sub-rag-chunking" class="pending">b.2) Chunking transcript</li>
+                                    <li id="sub-rag-embedding" class="pending">b.3) Creating Embeddings <span
                                             id="rag-progress">[0/0]</span></li>
-                                    <li id="sub-rag-db" class="pending">b.3) Storing embeddings</li>
-                                    <li id="sub-rag-complete" class="pending">b.4) Completed</li>
+                                    <li id="sub-rag-db" class="pending">b.4) Storing embeddings</li>
+                                    <li id="sub-rag-complete" class="pending">b.5) Completed</li>
                                 </ul>
                             </li>
                         </ul>
