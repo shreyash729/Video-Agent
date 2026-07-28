@@ -11,7 +11,7 @@ load_dotenv()
 
 
 # Keep backend core imports unchanged
-from utils.audio_processer import process_input
+from utils.audio_processer import process_input, get_job_dir
 from core.summarizer import summarize, generate_title
 from core.extractor import extract_action_items, extract_key_decisions, extract_questions
 from core.rag_engine import ask_question, format_docs
@@ -372,7 +372,7 @@ def pipeline_worker(job_id, source, language, config):
         
         # Cleanup temporary job files
         import shutil
-        job_dir = os.path.join('downloads', job_id)
+        job_dir = get_job_dir(job_id)
         if os.path.exists(job_dir):
             try:
                 shutil.rmtree(job_dir)
@@ -408,8 +408,7 @@ def start():
                 return jsonify({'ok': False, 'error': 'No file selected'})
             
             job_id = str(uuid.uuid4())
-            job_dir = os.path.join('downloads', job_id)
-            os.makedirs(job_dir, exist_ok=True)
+            job_dir = get_job_dir(job_id)
             filepath = os.path.join(job_dir, file.filename)
             file.save(filepath)
             source = filepath

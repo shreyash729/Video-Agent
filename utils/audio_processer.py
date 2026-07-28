@@ -3,9 +3,17 @@ from pydub import AudioSegment
 import os
 
 
-def download_youtube_audio(url :str, job_id: str) ->str:
-    job_dir = os.path.join('downloads', job_id)
+import tempfile
+
+def get_job_dir(job_id: str) -> str:
+    """Returns absolute path to a temporary job directory outside app root to avoid reloader restarts in production."""
+    base_dir = os.getenv("DOWNLOAD_DIR", os.path.join(tempfile.gettempdir(), "video_agent_downloads"))
+    job_dir = os.path.join(base_dir, job_id)
     os.makedirs(job_dir, exist_ok=True)
+    return job_dir
+
+def download_youtube_audio(url :str, job_id: str) ->str:
+    job_dir = get_job_dir(job_id)
     output_path = os.path.join(job_dir, "%(title)s.%(ext)s")
     browsers = ["chrome", "edge", "firefox", "brave", "opera", "safari"]
     filename = None

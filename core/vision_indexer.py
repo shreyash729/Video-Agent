@@ -4,15 +4,16 @@ from skimage.metrics import structural_similarity as ssim
 from PIL import Image
 from core.config import get_vision_model
 
+from utils.audio_processer import get_job_dir
+
 def extract_and_caption(
     video_path: str, 
     job_id: str, 
     interval_sec: int = 5, 
     similarity_threshold: float = 0.75
 ) -> list[dict]:
-    # Ensure save directory exists!
-    save_dir = f"downloads/{job_id}"
-    os.makedirs(save_dir, exist_ok=True)
+    # Ensure save directory exists outside app root to avoid server reloader restarts
+    save_dir = get_job_dir(job_id)
 
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
