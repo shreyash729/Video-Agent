@@ -36,3 +36,13 @@ gunicorn
 langchain-openai
 langchain-google-genai
 langchain-anthropic
+
+
+# vision requirements
+transformers
+accelerate
+torch
+moondream
+Pillow
+scikit-image
+opencv-python

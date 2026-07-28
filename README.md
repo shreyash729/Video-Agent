@@ -147,10 +147,7 @@ graph TD
    # (Optional) Local offline model compute dependencies:
    pip install -r requirements_local.txt
 
-   # (Optional) Visual-captioning model compute dependencies:
-   pip install -r vision_requirements.txt
-   ```
-
+   
 4. **Environment Variables (Optional `.env`):**
    Create a `.env` file in the root folder:
    ```env
