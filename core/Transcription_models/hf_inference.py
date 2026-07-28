@@ -21,10 +21,26 @@ class HFInferenceTranscriber(BaseTranscriber):
 
     def transcribe(self, chunk_path: str, task: str = "transcribe") -> str | list[dict]:
         self._load_client()
-        result = self.client.automatic_speech_recognition(chunk_path, model=self.model_name, return_timestamps=True, )
-        transcript_segments = [
-            {"start": chunk["timestamp"][0], "end": chunk["timestamp"][1], "text": chunk["text"]}
-            for chunk in result["chunks"]
-        ]
-        return transcript_segments
+        try:
+            result = self.client.automatic_speech_recognition(chunk_path, model=self.model_name, return_timestamps=True)
+        except TypeError:
+            # Fallback for newer/different huggingface_hub SDK method signatures
+            result = self.client.automatic_speech_recognition(chunk_path, model=self.model_name)
+
+        if isinstance(result, str):
+            return [{"start": 0.0, "end": 0.0, "text": result.strip()}]
+        
+        if isinstance(result, dict):
+            chunks = result.get("chunks")
+            if chunks and isinstance(chunks, list):
+                segments = []
+                for chunk in chunks:
+                    ts = chunk.get("timestamp") or [0.0, 0.0]
+                    start = ts[0] if isinstance(ts, (list, tuple)) and len(ts) > 0 and ts[0] is not None else 0.0
+                    end = ts[1] if isinstance(ts, (list, tuple)) and len(ts) > 1 and ts[1] is not None else 0.0
+                    segments.append({"start": start, "end": end, "text": chunk.get("text", "").strip()})
+                return segments
+            return [{"start": 0.0, "end": 0.0, "text": result.get("text", "").strip()}]
+
+        return [{"start": 0.0, "end": 0.0, "text": str(result).strip()}]
 
