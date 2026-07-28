@@ -45,12 +45,7 @@ def download_youtube_audio(url :str, job_id: str) ->str:
                             return convert_to_wav(out_filename)
                         break
     except Exception as e:
-        print(f"Failed via third-party API: {e}")
-
-    if not filename:
-        raise Exception("Failed to download video. If it is age-restricted or YouTube is blocking the server IP, you may need to run the app locally where it can use your browser cookies.")
-        
-    return convert_to_wav(filename)
+        raise Exception(f"Failed via third-party API: {e}")
 
 
 
