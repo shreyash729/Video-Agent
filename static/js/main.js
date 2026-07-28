@@ -215,6 +215,45 @@ document.addEventListener('DOMContentLoaded', () => {
         { value: "moondream 3", text: "Moondream 3 API (Online)" }
     ];
 
+    function getHfTokenValue() {
+        const inputs = document.querySelectorAll('.config-hf-token');
+        for (let input of inputs) {
+            if (input.value.trim()) return input.value.trim();
+        }
+        return '';
+    }
+
+    function setHfTokenValue(val) {
+        document.querySelectorAll('.config-hf-token').forEach(input => {
+            input.value = val;
+        });
+    }
+
+    document.querySelectorAll('.config-hf-token').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const val = e.target.value;
+            document.querySelectorAll('.config-hf-token').forEach(other => {
+                if (other !== e.target) other.value = val;
+            });
+        });
+    });
+
+    function checkHfTokenVisibility() {
+        const isTranscriptionOnline = configTranscriptionMode && configTranscriptionMode.value === 'online';
+        const isEmbeddingOnline = configEmbeddingMode && configEmbeddingMode.value === 'online';
+        const isGemmaOffline = configEmbeddingMode && configEmbeddingMode.value === 'offline' && configEmbeddingModel && configEmbeddingModel.value === 'google/embeddinggemma-300m';
+
+        const needHfToken = isTranscriptionOnline || isEmbeddingOnline || isGemmaOffline;
+
+        document.querySelectorAll('.hf-token-group').forEach(group => {
+            if (needHfToken) {
+                group.classList.remove('hidden');
+            } else {
+                group.classList.add('hidden');
+            }
+        });
+    }
+
     function updateTranscriptionModels(mode, selectedModel = null) {
         configTranscriptionModel.innerHTML = '';
         const models = mode === 'online' ? ONLINE_MODELS : OFFLINE_MODELS;
@@ -226,17 +265,12 @@ document.addEventListener('DOMContentLoaded', () => {
             configTranscriptionModel.appendChild(opt);
         });
 
-        if (mode === 'online' || configEmbeddingMode.value === 'online') {
-            hfTokenGroup.classList.remove('hidden');
-        } else {
-            hfTokenGroup.classList.add('hidden');
-        }
-
         if (selectedModel) {
             configTranscriptionModel.value = selectedModel;
         }
 
         updateTranscriptionLink();
+        checkHfTokenVisibility();
     }
 
     function updateEmbeddingModels(mode, selectedModel = null) {
@@ -249,17 +283,12 @@ document.addEventListener('DOMContentLoaded', () => {
             configEmbeddingModel.appendChild(opt);
         });
 
-        if (mode === 'online' || configTranscriptionMode.value === 'online') {
-            hfTokenGroup.classList.remove('hidden');
-        } else {
-            hfTokenGroup.classList.add('hidden');
-        }
-
         if (selectedModel) {
             configEmbeddingModel.value = selectedModel;
         }
 
         updateEmbeddingLink();
+        checkHfTokenVisibility();
     }
 
     function updateTranscriptionLink() {
@@ -367,7 +396,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (configEmbeddingModel) {
-        configEmbeddingModel.addEventListener('change', updateEmbeddingLink);
+        configEmbeddingModel.addEventListener('change', () => {
+            updateEmbeddingLink();
+            checkHfTokenVisibility();
+        });
     }
 
     // Step Navigation
@@ -387,13 +419,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
             } else if (current === 2) {
-                if (configTranscriptionMode.value === 'online' && !isConfigured && !configHfToken.value.trim()) {
+                if (configTranscriptionMode.value === 'online' && !isConfigured && !getHfTokenValue()) {
                     alert('Please enter your Hugging Face Token for online transcription.');
                     return;
                 }
             } else if (current === 3) {
-                if (configEmbeddingMode.value === 'online' && !isConfigured && !configHfToken.value.trim()) {
+                const hfToken = getHfTokenValue();
+                if (configEmbeddingMode.value === 'online' && !isConfigured && !hfToken) {
                     alert('Please enter your Hugging Face Token for online embeddings.');
+                    return;
+                }
+                if (configEmbeddingMode.value === 'offline' && !isConfigured && configEmbeddingModel.value === 'google/embeddinggemma-300m' && !hfToken) {
+                    alert('google/embeddinggemma-300m is a gated model. Please enter your Hugging Face Token to download it.');
                     return;
                 }
             }
@@ -501,10 +538,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (savedConfig.hf_token) {
-                    configHfToken.value = "********";
+                    setHfTokenValue("********");
                 } else {
-                    configHfToken.value = "";
+                    setHfTokenValue("");
                 }
+                checkHfTokenVisibility();
 
                 const isVisionSel = savedConfig.is_vision_selected !== undefined ? savedConfig.is_vision_selected : true;
                 if (configVisionSelected) configVisionSelected.checked = isVisionSel;
@@ -589,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const tMode = configTranscriptionMode.value;
             const tModel = configTranscriptionModel.value;
-            const hfToken = configHfToken.value.trim();
+            const hfToken = getHfTokenValue();
             const eMode = configEmbeddingMode.value;
             const eModel = configEmbeddingModel.value;
 
@@ -598,8 +636,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const vModel = configVisionModel ? configVisionModel.value : 'Salesforce/blip-image-captioning-base';
             const vApiKey = configVisionApiKey ? configVisionApiKey.value.trim() : '';
 
-            if ((tMode === 'online' || eMode === 'online') && !hfToken && !isConfigured) {
-                alert('Please provide your Hugging Face token for online models.');
+            if ((tMode === 'online' || eMode === 'online' || (eMode === 'offline' && eModel === 'google/embeddinggemma-300m')) && !hfToken && !isConfigured) {
+                alert('Please provide your Hugging Face token for online models or gated models like google/embeddinggemma-300m.');
                 btn.innerText = oldText;
                 btn.disabled = false;
                 return;
@@ -741,13 +779,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function startPoll() {
         if (pollHandle) clearInterval(pollHandle);
-        pollHandle = setInterval(updateStatus, 1000);
+        pollHandle = setInterval(updateStatus, 5000);
     }
 
-    function updateSubstep(elementId, status) {
-        const el = document.getElementById(elementId);
-        if (!el) return;
-        el.className = status; // pending, running, completed
+    function goHome() {
+        if (pollHandle) {
+            clearInterval(pollHandle);
+            pollHandle = null;
+        }
+        currentJobId = null;
+        pendingSource = '';
+        if (fileNameDisplay) fileNameDisplay.innerText = 'select the video to process';
+        if (fileInput) fileInput.value = '';
+
+        document.querySelectorAll('.view-section, .results-panel').forEach(e => e.classList.add('hidden'));
+        sidebar.classList.add('hidden');
+        viewInput.classList.remove('hidden');
+        layoutWrapper.className = 'dynamic-layout-wrapper';
+        if (summaryBox) summaryBox.innerHTML = '<div class="empty-state spinner-large"></div>';
+        if (chatArea) chatArea.innerHTML = '';
+    }
+
+    const navHomeBtn = el('nav-home-btn');
+    if (navHomeBtn) navHomeBtn.addEventListener('click', goHome);
+    const navLogoBtn = el('nav-logo-btn');
+    if (navLogoBtn) navLogoBtn.addEventListener('click', goHome);
+
+    function updateSubstep(elementId, status, errorMsg) {
+        const elItem = document.getElementById(elementId);
+        if (!elItem) return;
+        elItem.className = status; // pending, running, completed, failed
+        let errBox = elItem.querySelector('.substep-error-box');
+        if (status === 'failed' && errorMsg) {
+            if (!errBox) {
+                errBox = document.createElement('div');
+                errBox.className = 'substep-error-box';
+                elItem.appendChild(errBox);
+            }
+            errBox.innerText = `Error: ${errorMsg}`;
+        } else if (errBox && status !== 'failed') {
+            errBox.remove();
+        }
     }
 
     async function updateStatus() {
@@ -756,48 +828,36 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = await fetch(`/status?job_id=${currentJobId}`);
             const s = await r.json();
 
-            if (s.error) {
-                alert(`An error occurred during processing:\n\n${s.error}`);
-                clearInterval(pollHandle);
-                pollHandle = null;
-                currentJobId = null;
-
-                // Reset UI to home screen
-                document.querySelectorAll('.view-section, .results-panel').forEach(el => el.classList.add('hidden'));
-                sidebar.classList.add('hidden');
-                viewInput.classList.remove('hidden');
-                layoutWrapper.classList.remove('state-summary', 'state-chat');
-                summaryBox.innerHTML = '<div class="empty-state spinner-large"></div>';
-                chatArea.innerHTML = '';
-
-                return;
-            }
-
             const steps = s.pipeline_steps;
-
+            if (!steps) return;
 
             // Step 1: Transcribing
-            updateSubstep('sub-audio-extract', getMappedStatus(steps.audio_extract.status));
-            updateSubstep('sub-transcribe-step', getMappedStatus(steps.transcribe.status));
-            updateSubstep('sub-title', getMappedStatus(steps.Generating_Title.status));
-
+            updateSubstep('sub-audio-extract', getMappedStatus(steps.audio_extract?.status), steps.audio_extract?.error);
+            updateSubstep('sub-transcribe-step', getMappedStatus(steps.transcribe?.status), steps.transcribe?.error);
+            updateSubstep('sub-title', getMappedStatus(steps.Generating_Title?.status), steps.Generating_Title?.error);
 
             // Step 2: Summarization & RAG
             if (steps.vision_extract) {
                 const subVision = el('sub-vision-extract');
                 if (subVision) subVision.style.display = 'block';
-                updateSubstep('sub-vision-extract', getMappedStatus(steps.vision_extract.status));
+                updateSubstep('sub-vision-extract', getMappedStatus(steps.vision_extract.status), steps.vision_extract.error);
             }
-            updateSubstep('sub-summarize-llm', getMappedStatus(steps.summarize_llm.status));
-            updateSubstep('sub-rag-chunking', getMappedStatus(steps.rag_chunking.status));
-            updateSubstep('sub-rag-embedding', getMappedStatus(steps.rag_embedding.status));
+            updateSubstep('sub-summarize-llm', getMappedStatus(steps.summarize_llm?.status), steps.summarize_llm?.error);
+            updateSubstep('sub-rag-chunking', getMappedStatus(steps.rag_chunking?.status), steps.rag_chunking?.error);
+            updateSubstep('sub-rag-embedding', getMappedStatus(steps.rag_embedding?.status), steps.rag_embedding?.error);
 
-            if (steps.rag_embedding.total > 0) {
+            if (steps.rag_embedding?.total > 0) {
                 el('rag-progress').innerText = `[${steps.rag_embedding.progress}/${steps.rag_embedding.total}]`;
             }
 
-            updateSubstep('sub-rag-db', getMappedStatus(steps.rag_db.status));
-            updateSubstep('sub-rag-complete', getMappedStatus(steps.rag_complete.status));
+            updateSubstep('sub-rag-db', getMappedStatus(steps.rag_db?.status), steps.rag_db?.error);
+            updateSubstep('sub-rag-complete', getMappedStatus(steps.rag_complete?.status), steps.rag_complete?.error);
+
+            if (s.error || Object.values(steps).some(step => step && step.status === 'failed')) {
+                clearInterval(pollHandle);
+                pollHandle = null;
+                return;
+            }
 
             // View Management
             if (s.summary && summaryBox.innerHTML.includes('spinner-large')) {
@@ -811,7 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 viewSummary.classList.remove('hidden');
             }
 
-            if (steps.rag_complete.status === 'done' && viewChat.classList.contains('hidden')) {
+            if (steps.rag_complete?.status === 'done' && viewChat.classList.contains('hidden')) {
                 // Step 3: RAG Ready
                 el('side-step-chat').className = 'side-step-title completed';
                 el('side-step-chat').innerText = "3. Chat Bot Ready";
@@ -821,7 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 layoutWrapper.classList.add('state-chat');
                 viewChat.classList.remove('hidden');
                 addChatMessage("RAG engine is ready. You can now ask questions about the video.", 'bot');
-            } else if (steps.rag_complete.status === 'active') {
+            } else if (steps.rag_complete?.status === 'active') {
                 el('side-step-chat').className = 'side-step-title running';
                 el('side-step-chat').innerText = "3. Initializing Chat Bot (Running...)";
             }
@@ -842,6 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function getMappedStatus(serverStatus) {
         if (serverStatus === 'active') return 'running';
         if (serverStatus === 'done') return 'completed';
+        if (serverStatus === 'failed') return 'failed';
         return 'pending';
     }
 

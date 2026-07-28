@@ -30,9 +30,12 @@ def get_embedding_instance(config: dict):
         
     if mode == "offline":
         from langchain_huggingface import HuggingFaceEmbeddings
+        hf_token = config.get("hf_token")
+        model_kwargs = {"token": hf_token} if hf_token else {}
         return HuggingFaceEmbeddings(
             model_name=model,
             encode_kwargs={"normalize_embeddings": True},
+            model_kwargs=model_kwargs
         )
     elif mode == "online":
         from langchain_huggingface import HuggingFaceEndpointEmbeddings

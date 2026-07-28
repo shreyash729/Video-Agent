@@ -20,19 +20,32 @@
 
 
 
-    <!-- Main App Container -->
-    <main class="app-container" id="main-content">
-        <header class="app-header" id="app-header">
-            <div class="logo">
+    <!-- Responsive Navbar -->
+    <nav class="navbar" id="app-navbar">
+        <div class="nav-left">
+            <div class="nav-logo" id="nav-logo-btn" style="cursor: pointer;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="23 7 16 12 23 17 23 7"></polygon>
                     <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
                 </svg>
-                <h1>AI Video Assistant</h1>
+                <span class="nav-title">AIVA - AI Video Assistant</span>
             </div>
-            <p>Transform your videos into actionable insights instantly.</p>
-        </header>
+
+        </div>
+        <button class="nav-home-btn" id="nav-home-btn" title="Go to Homepage" onclick="window.location.reload()">
+
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <span>Home</span>
+        </button>
+    </nav>
+
+    <!-- Main App Container -->
+    <main class="app-container" id="main-content">
 
         <div class="dynamic-layout-wrapper" id="layout-wrapper">
             <!-- 1. Input Canvas -->
@@ -139,9 +152,10 @@
                                 style="display: none; margin-top: 8px; font-size: 0.9rem;">View Model on Hugging
                                 Face</a>
                         </div>
-                        <div class="input-group hidden" id="hf-token-group">
+                        <div class="input-group hidden hf-token-group" id="hf-token-group-step2">
                             <label>Hugging Face Token</label>
-                            <input type="password" id="config-hf-token" placeholder="Enter your HF_TOKEN" />
+                            <input type="password" class="config-hf-token" id="config-hf-token-step2"
+                                placeholder="Enter your HF_TOKEN" />
                         </div>
                         <div style="display: flex; gap: 12px; margin-top: 24px;">
                             <button type="button" class="secondary-btn btn-prev-step" data-prev="1">Back</button>
@@ -166,6 +180,11 @@
                             <a id="link-embedding-model" href="#" target="_blank" class="info-link"
                                 style="display: none; margin-top: 8px; font-size: 0.9rem;">View Model on Hugging
                                 Face</a>
+                        </div>
+                        <div class="input-group hidden hf-token-group" id="hf-token-group-step3">
+                            <label>Hugging Face Token</label>
+                            <input type="password" class="config-hf-token" id="config-hf-token-step3"
+                                placeholder="Enter your HF_TOKEN" />
                         </div>
                         <div style="display: flex; gap: 12px; margin-top: 24px;">
                             <button type="button" class="secondary-btn btn-prev-step" data-prev="2">Back</button>

@@ -73,11 +73,13 @@ def get_initial_job_state(source, language, config):
         "pipeline_steps": steps
     }
 
-def set_step(job_id, key, status, details=None, progress=None, total=None, activity=None):
+def set_step(job_id, key, status, details=None, progress=None, total=None, activity=None, error=None):
     with state_lock:
         if job_id not in jobs: return
         try:
             job_state = jobs[job_id]
+            if key not in job_state['pipeline_steps']:
+                job_state['pipeline_steps'][key] = {}
             job_state['pipeline_steps'][key]['status'] = status
             if details is not None:
                 job_state['pipeline_steps'][key]['details'] = details
@@ -87,8 +89,24 @@ def set_step(job_id, key, status, details=None, progress=None, total=None, activ
                 job_state['pipeline_steps'][key]['total'] = total
             if activity is not None:
                 job_state['current_activity'] = activity
+            if error is not None:
+                job_state['pipeline_steps'][key]['error'] = error
         except Exception:
             return
+
+def handle_step_error(job_id, step_key, exc):
+    err_msg = str(exc)
+    traceback.print_exc()
+    with state_lock:
+        if job_id in jobs:
+            jobs[job_id]['error'] = f"Failed at {step_key}: {err_msg}"
+            jobs[job_id]['running'] = False
+            jobs[job_id]['current_activity'] = f"Failed at {step_key}"
+    set_step(job_id, step_key, 'failed', details=f"Failed: {err_msg}", error=err_msg)
+
+def is_job_running(job_id):
+    with state_lock:
+        return jobs.get(job_id, {}).get('running', False) and not jobs.get(job_id, {}).get('error')
 
 import sys
 import re
@@ -158,49 +176,68 @@ def pipeline_worker(job_id, source, language, config):
             if job_id not in jobs: return
             jobs[job_id]['running'] = True
 
+        # Step 1: Audio extraction
         set_step(job_id, 'audio_extract', 'active', details="Extracting and preparing audio...")
-        file_path = process_input(source, job_id) 
-        set_step(job_id, 'audio_extract', 'done')
+        try:
+            file_path = process_input(source, job_id)
+            set_step(job_id, 'audio_extract', 'done')
+        except Exception as e:
+            handle_step_error(job_id, 'audio_extract', e)
+            return
 
-        
+        # Step 2: Transcribe
+        if not is_job_running(job_id): return
         set_step(job_id, 'transcribe', 'active', details="Transcribing Video...")
-        transcript_segments = transcribe_chunk(file_path['audio'], config, language=language)
-        full_transcript = " ".join([seg["text"].strip() for seg in transcript_segments])
+        try:
+            transcript_segments = transcribe_chunk(file_path['audio'], config, language=language)
+            full_transcript = " ".join([seg["text"].strip() for seg in transcript_segments])
+            set_step(job_id, 'transcribe', 'done')
+        except Exception as e:
+            handle_step_error(job_id, 'transcribe', e)
+            return
 
-        set_step(job_id, 'transcribe', 'done')
-        
+        # Step 3: Title Generation
+        if not is_job_running(job_id): return
         set_step(job_id, 'Generating_Title', 'active', activity="Generating title...")
-        with state_lock:
-            jobs[job_id]['transcript'] = full_transcript
-            jobs[job_id]['title'] = generate_title(full_transcript, config)
-        set_step(job_id, 'Generating_Title', 'done')
+        try:
+            title = generate_title(full_transcript, config)
+            with state_lock:
+                jobs[job_id]['transcript'] = full_transcript
+                jobs[job_id]['title'] = title
+            set_step(job_id, 'Generating_Title', 'done')
+        except Exception as e:
+            handle_step_error(job_id, 'Generating_Title', e)
+            return
 
         def do_summary():
+            if not is_job_running(job_id): return
             set_step(job_id, 'summarize_llm', 'active', activity="Generating Summary...")
             try:
                 summary = summarize(full_transcript, config)
                 with state_lock:
                     jobs[job_id]['summary'] = summary
-            except Exception:
-                traceback.print_exc()
-            set_step(job_id, 'summarize_llm', 'done')
+                set_step(job_id, 'summarize_llm', 'done')
+            except Exception as e:
+                handle_step_error(job_id, 'summarize_llm', e)
 
         def do_rag():
-            try:
-                
-
-                allow_vision = (config.get("is_Vision_Selected") or config.get("is_vision_selected")) if isinstance(config, dict) else False
-                if(allow_vision == True):
-                    set_step(job_id, 'vision_extract', 'active', details="Extracting and preparing vision for RAG...")
+            if not is_job_running(job_id): return
+            allow_vision = (config.get("is_Vision_Selected") or config.get("is_vision_selected")) if isinstance(config, dict) else False
+            visual_captions = False
+            if allow_vision:
+                set_step(job_id, 'vision_extract', 'active', details="Extracting and preparing vision for RAG...")
+                try:
                     from core.vision_indexer import process_vision_captions   
                     visual_captions = process_vision_captions(file_path['video'], job_id=job_id, config=config)
                     set_step(job_id, 'vision_extract', 'done')
-                else:
-                    visual_captions = False
-                docs = []
+                except Exception as e:
+                    handle_step_error(job_id, 'vision_extract', e)
+                    return
 
-                # 1. Build Smart Timestamped Audio Chunks
-                set_step(job_id, 'rag_chunking', 'active', details="Chunking Transcript & Vision for RAG...")
+            if not is_job_running(job_id): return
+            set_step(job_id, 'rag_chunking', 'active', details="Chunking Transcript & Vision for RAG...")
+            docs = []
+            try:
                 current_text = ""
                 start_time = None
                 end_time = None
@@ -218,9 +255,7 @@ def pipeline_worker(job_id, source, language, config):
                     if word_count >= 120:
                         start_fmt = f"{int(start_time // 60):02d}:{int(start_time % 60):02d}"
                         end_fmt = f"{int(end_time // 60):02d}:{int(end_time % 60):02d}"
-                        
                         content = f"[{start_fmt} - {end_fmt}] {current_text.strip()}"
-                        
                         docs.append(Document(
                             page_content=content,
                             metadata={"start_time": start_fmt, "type": "audio_transcript"}
@@ -248,26 +283,35 @@ def pipeline_worker(job_id, source, language, config):
                         ))
 
                 set_step(job_id, 'rag_chunking', 'done')
+            except Exception as e:
+                handle_step_error(job_id, 'rag_chunking', e)
+                return
 
-                set_step(job_id, 'rag_db', 'active', details="Initializing Vector Store...")
-                embeddings = vector_store.get_embeddings(config) #[cite: 5]
-                unique_col = f"{vector_store.COLLECTION_NAME}_{int(time.time())}_{job_id[:8]}" #[cite: 5]
-                
-                vs = Chroma(collection_name=unique_col, embedding_function=embeddings) #[cite: 5]
+            if not is_job_running(job_id): return
+            set_step(job_id, 'rag_db', 'active', details="Initializing Vector Store...")
+            try:
+                embeddings = vector_store.get_embeddings(config)
+                unique_col = f"{vector_store.COLLECTION_NAME}_{int(time.time())}_{job_id[:8]}"
+                vs = Chroma(collection_name=unique_col, embedding_function=embeddings)
                 set_step(job_id, 'rag_db', 'done')
+            except Exception as e:
+                handle_step_error(job_id, 'rag_db', e)
+                return
 
-                # 4. Batch Ingest Embeddings (Instant Performance Boost!)
-                tot_rag = len(docs)
-                set_step(job_id, 'rag_embedding', 'active', details=f"Embedding {tot_rag} chunks in batch...", progress=50, total=100)
-                
-                # Batch add ALL documents at once instead of a for-loop!
+            if not is_job_running(job_id): return
+            tot_rag = len(docs)
+            set_step(job_id, 'rag_embedding', 'active', details=f"Embedding {tot_rag} chunks in batch...", progress=50, total=100)
+            try:
                 vs.add_documents(docs)
-                
                 set_step(job_id, 'rag_embedding', 'done', progress=100, total=100)
+            except Exception as e:
+                handle_step_error(job_id, 'rag_embedding', e)
+                return
 
-                # 5. Build Updated System Prompt & RAG Chain
-                retriever = vector_store.get_retriever(vs, k=4) #[cite: 5]
-                llm = get_llm(config) #[cite: 3, 4]
+            if not is_job_running(job_id): return
+            try:
+                retriever = vector_store.get_retriever(vs, k=4)
+                llm = get_llm(config)
 
                 system_prompt = (
                     "You are an expert video AI assistant. Answer the user's question based ONLY on the video transcript and visual context provided below.\n\n"
@@ -279,39 +323,40 @@ def pipeline_worker(job_id, source, language, config):
                     "Context from video:\n{context}"
                 )
 
-                prompt = ChatPromptTemplate.from_messages([ #[cite: 3, 4]
+                prompt = ChatPromptTemplate.from_messages([
                     ("system", system_prompt),
                     ("human", "{question}"),
                 ])
 
                 rag_chain = (
-                    {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()} #[cite: 3, 4]
+                    {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()}
                     | prompt 
                     | llm 
-                    | StrOutputParser() #[cite: 3, 4]
+                    | StrOutputParser()
                 )
 
                 with state_lock:
                     jobs[job_id]['rag_chain'] = rag_chain
 
                 set_step(job_id, 'rag_complete', 'done', activity="RAG Ready")
-
-            except Exception:
-                traceback.print_exc()
-
-
+            except Exception as e:
+                handle_step_error(job_id, 'rag_complete', e)
+                return
 
         t1 = threading.Thread(target=do_summary, daemon=True)
         t2 = threading.Thread(target=do_rag, daemon=True)
         t1.start(); t2.start()
         t1.join(); t2.join()
 
-        # Extract action items / decisions / questions (can run after summary)
-        with state_lock:
-            jobs[job_id]['action_items'] = extract_action_items(full_transcript, config)
-            jobs[job_id]['decisions'] = extract_key_decisions(full_transcript, config)
-            jobs[job_id]['questions'] = extract_questions(full_transcript, config)
-            jobs[job_id]['current_activity'] = "Completed"
+        if is_job_running(job_id):
+            try:
+                with state_lock:
+                    jobs[job_id]['action_items'] = extract_action_items(full_transcript, config)
+                    jobs[job_id]['decisions'] = extract_key_decisions(full_transcript, config)
+                    jobs[job_id]['questions'] = extract_questions(full_transcript, config)
+                    jobs[job_id]['current_activity'] = "Completed"
+            except Exception as e:
+                traceback.print_exc()
 
     except Exception as e:
         traceback.print_exc()
@@ -418,7 +463,8 @@ def status():
             'summary': job_state['summary'],
             'title': job_state['title'],
             'pipeline_steps': job_state['pipeline_steps'],
-            'current_activity': job_state['current_activity']
+            'current_activity': job_state['current_activity'],
+            'error': job_state.get('error')
         }
     return jsonify(out)
 
