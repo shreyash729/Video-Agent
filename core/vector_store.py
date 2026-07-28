@@ -1,4 +1,10 @@
+import sys
 import os
+
+sys.path = [p for p in sys.path if '/agents/' not in p]
+for mod_name in list(sys.modules.keys()):
+    if mod_name.startswith('opentelemetry'):
+        del sys.modules[mod_name]
 
 # Compatibility imports: some langchain ecosystem packages have moved/renamed.
 from langchain_chroma import Chroma
