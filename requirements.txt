@@ -4,6 +4,7 @@
 yt-dlp
 pydub
 ffmpeg-python
+static-ffmpeg
 
 #  Speech-to-Text (local Whisper dependencies moved to requirements_local.txt)
 
