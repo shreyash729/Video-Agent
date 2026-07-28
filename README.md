@@ -124,7 +124,7 @@ graph TD
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/video-agent.git
+   git clone https://github.com/shreyash729/Video-Agent.git
    cd video-agent
    ```
 
@@ -146,13 +146,16 @@ graph TD
 
    # (Optional) Local offline model compute dependencies:
    pip install -r requirements_local.txt
+
+   # (Optional) Visual-captioning model compute dependencies:
+   pip install -r vision_requirements.txt
    ```
 
 4. **Environment Variables (Optional `.env`):**
    Create a `.env` file in the root folder:
    ```env
    ALLOW_LOCAL_MODEL="true"
-   GITHUB_REPO="https://github.com/your-username/video-agent"
+   GITHUB_REPO="https://github.com/shreyash729/Video-Agent.git"
    ```
 
 5. **Run the Application:**
