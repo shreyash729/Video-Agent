@@ -1,6 +1,11 @@
+import sys
+import os
+
+# Fix Azure App Service path collision with built-in opentelemetry (/agents/python)
+sys.path = [p for p in sys.path if not p.startswith('/agents/python')]
+
 try:
     __import__('pysqlite3')
-    import sys
     sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 except Exception:
     pass
