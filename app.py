@@ -401,6 +401,10 @@ def pipeline_worker(job_id, source, language, config):
 def index():
     return render_template('index.html')
 
+@app.route('/api-keys')
+def api_keys():
+    return render_template('api_keys.html')
+
 
 import uuid
 

@@ -782,29 +782,6 @@ document.addEventListener('DOMContentLoaded', () => {
         pollHandle = setInterval(updateStatus, 5000);
     }
 
-    function goHome() {
-        if (pollHandle) {
-            clearInterval(pollHandle);
-            pollHandle = null;
-        }
-        currentJobId = null;
-        pendingSource = '';
-        if (fileNameDisplay) fileNameDisplay.innerText = 'select the video to process';
-        if (fileInput) fileInput.value = '';
-
-        document.querySelectorAll('.view-section, .results-panel').forEach(e => e.classList.add('hidden'));
-        sidebar.classList.add('hidden');
-        viewInput.classList.remove('hidden');
-        layoutWrapper.className = 'dynamic-layout-wrapper';
-        if (summaryBox) summaryBox.innerHTML = '<div class="empty-state spinner-large"></div>';
-        if (chatArea) chatArea.innerHTML = '';
-    }
-
-    const navHomeBtn = el('nav-home-btn');
-    if (navHomeBtn) navHomeBtn.addEventListener('click', goHome);
-    const navLogoBtn = el('nav-logo-btn');
-    if (navLogoBtn) navLogoBtn.addEventListener('click', goHome);
-
     function updateSubstep(elementId, status, errorMsg) {
         const elItem = document.getElementById(elementId);
         if (!elItem) return;
